@@ -18,7 +18,8 @@ class Colors:
     gray  = .7, .7, .7, 1
     red   = 1, 0, 0, 1
     blue  = .2, .2, .8, 1
-    yellow    = .8, .2, .8, 1
+    yellow = .8, .2, .8, 1
+    red2  = .8, .2, .2, 1
     @classmethod
     def t(cls, name):
         # get a tuple of a color multiplied up to 0-255
@@ -172,7 +173,6 @@ class Score:
         self.total += 1
     def hit(self,symbol=None):
         self.success += 1
-        print self.success
         # queue an affirmation every somany characters
         if self.success % Score.LINE_AFFIRM_THRESHOLD == 0:
             self.affirmation_queued = True
@@ -192,7 +192,7 @@ class Score:
         if not elapsed: return 0
         return '%.4f' % (self.success / elapsed)
     def draw(self):
-        scoretext = 'success percentage: %s\nmisses: %s\ncps: %s' % (self.miss_rate(), self.misses, self.get_cps())
+        scoretext = 'fail percentage: %s\nmisses: %s\ncps: %s' % (self.miss_rate(), self.misses, self.get_cps())
         pyglet.text.Label(scoretext, 
                        color=Colors.t('green'),
                        font_name='Consolas', 
