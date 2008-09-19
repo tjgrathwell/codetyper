@@ -89,7 +89,16 @@ class CodeSnippet:
     def draw(self):
         self.layout.draw()
 
-class Affirmation:
+class FloatingText:
+    negative = ["You suck!",
+                "Stop typing wrong!",
+                "Come on, now!",
+                "Hey! Type better!",
+                "Terrible!",
+                "Awful!",
+                "Shape up!",
+                "Stop missing!",
+                "Dude! Type correctly!"]
     line     = ["Keep going!",
                 "You can do it!",
                 "We're counting on you!",
@@ -122,9 +131,18 @@ class Affirmation:
                 "Hooray!",
                 "OMG!!!",
                 "Dude!!"]
-    def __init__(self,strong=False):
-        self.word = random.choice(Affirmation.para) if strong else random.choice(Affirmation.line)
-        self.color = Colors.t('blue') if strong else Colors.t('yellow')
+    def __init__(self,type='line'):
+        if type == 'line':
+            self.color = Colors.t('yellow')
+            self.word = random.choice(FloatingText.line)
+        elif type == 'snippet':
+            self.color = Colors.t('blue')
+            self.word = random.choice(FloatingText.para)
+        elif type == 'negative':
+            self.color = Colors.t('red2')
+            self.word = random.choice(FloatingText.negative)
+        else:
+            raise Exception
         self.label = pyglet.text.Label(self.word, 
                        color=self.color,
                        bold=True,
@@ -144,11 +162,12 @@ class Affirmation:
     def tick(self,dt):
         self.elapsed += dt
         
+        if abs(self.total_time - self.elapsed) > 2:
+            return False
+        
         # this whole bit is pretty bullshit. REFACTOR
         # make a value from 0 to total time where 0 is closest to the center
         far_awayness = min(abs(self.total_time - self.elapsed), self.total_time) * 1/self.total_time
-        if far_awayness > 2:
-            return False
         opc = min((1-far_awayness) * 1.6, 1.0) # 1.6 is magic value chosen by my mind
         self.color[3] = int(opc * 255) # set opacity
         self.label.color = self.color
@@ -168,19 +187,22 @@ class Score:
         self.misses = 0
         self.total = 0
         self.start_time = time.time()
-        self.affirmation_queued = 0
+        self.FloatingText_queued = 0
     def key(self):
         self.total += 1
     def hit(self,symbol=None):
         self.success += 1
-        # queue an affirmation every somany characters
+        # queue an FloatingText every somany characters
         if self.success % Score.LINE_AFFIRM_THRESHOLD == 0:
-            self.affirmation_queued = True
-        if symbol and symbol == key.ENTER and self.affirmation_queued:
-            self.affirmation_queued = False
+            self.FloatingText_queued = True
+        if symbol and symbol == key.ENTER and self.FloatingText_queued:
+            self.FloatingText_queued = False
             return True
     def miss(self):
         self.misses += 1
+        if self.misses % 10 == 0:
+            return True
+        return False
     def success_rate(self):
         if not self.total: return 0
         return '%.4f' % (self.success / float(self.total))
@@ -210,7 +232,6 @@ class SnippetMonger:
         for file in self.snipfiles:
             self.snippets += [s for s in open(file).read().split('|||||=====|||||') if len(s)]
         self.snippets.sort(lambda x,y: len(x)-len(y)) # Sort snippets by length
-        print self.snippets
         self.current = 0
     def next(self):
         if self.current >= len(self.snippets):
@@ -223,23 +244,25 @@ class Game:
     def __init__(self):
         self.snippetmonger = SnippetMonger()
         self.reset()
-        self.aff = None
+        self.messages = []
     def reset(self):
         self.scorer = Score()
         self.new_word()
     def new_word(self):
         self.current_snippet = self.snippetmonger.next()
-    def affirmation(self,strong=False):
-        self.aff = Affirmation(strong)
+    def FloatingText(self,type='line'):
+        self.messages.append(FloatingText(type))
     def tick(self,dt):
-        if self.aff:
-            alive = self.aff.tick(dt)
-            if not alive: self.aff = None
+        dead = []
+        for message in self.messages:
+            alive = message.tick(dt)
+            if not alive: dead.append(message)
+        [self.messages.remove(message) for message in dead]
     def draw(self):
         self.current_snippet.draw()
         self.scorer.draw()
-        if self.aff:
-            self.aff.draw()
+        for message in self.messages:
+            message.draw()
 
 window = pyglet.window.Window(caption = "code typer", width = Screen.width, height = Screen.height, resizable = True)
 window.set_icon(pyglet.image.load('codetypericon.png'))
@@ -262,20 +285,22 @@ def on_draw():
 def on_key_press(symbol, modifiers):
     game.scorer.key()
     hit, winner = game.current_snippet.symbol_on(symbol)
-    if winner: # beat a snippet, strong affirmation
+    if winner: # beat a snippet, show a strongly positive message
         game.new_word()
-        game.affirmation(True)
+        game.FloatingText('snippet')
     elif hit:
         affirm = game.scorer.hit(symbol)
-        if affirm: # did a line, weak affirmation
-            game.affirmation(False)
+        if affirm: # did a line, show a weakly positive message
+            game.FloatingText('line')
 
 @window.event
 def on_text(text):
     if game.current_snippet.type_on(text):
         game.scorer.hit()
     else:
-        game.scorer.miss()
+        neg = game.scorer.miss()
+        if neg:
+            game.FloatingText('negative')
 
 if __name__ == '__main__':
     if '1.1' not in pyglet.version:

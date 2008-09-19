@@ -20,6 +20,10 @@ mysql_real_escape_string  ($unescaped_string)
 mysql_real_escape_string  ($unescaped_string  [, $link_identifier  ] )
 with or without optional parameters?
 
+decrease font for big messages
+
+fix bug with a miss being triggered for endline
+
 sample debugger session mode
 
 more visual pizzazz and whatnot
