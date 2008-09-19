@@ -5,11 +5,35 @@ from pyglet.gl import *
 import random
 import time
 import os
+import sys
 
 DEBUG = False
 
+def drawQuad(x,y,w,h,hollow=False):
+    # in screen space
+    type = pyglet.gl.GL_LINE_LOOP if hollow else pyglet.gl.GL_QUADS
+    pyglet.graphics.draw(4, type,('v2f', (x,     y,
+                                          x + w, y,
+                                          x + w, y - h,
+                                          x,     y - h)))
+
 class Screen:
     width, height = 1000, 480
+
+class HighScores:
+    scores = []
+    @classmethod
+    def load(cls,file):
+        pass
+    @classmethod
+    def save(cls,file):
+        pass
+    @classmethod
+    def add(cls,score):
+        cls.scores.append(score)
+    @classmethod
+    def get_sorted(cls):
+        return sorted(cls.scores, lambda x,y: y['points'] - x['points'])
 
 class Colors:
     white = 1, 1, 1, 1
@@ -107,7 +131,7 @@ class FloatingText:
                 "Nice one!",
                 "Alright!",
                 "Keep it together!",
-                "You're doing great!"
+                "You're doing great!",
                 "Great job!",
                 "Keep typing!",
                 "Cool!"]
@@ -180,6 +204,23 @@ class FloatingText:
     def draw(self):
         self.label.draw()
 
+class Stopwatch:
+    def __init__(self,totaltime):
+        self.totaltime = totaltime
+        self.started = False
+    def go(self):
+        self.started = time.time()
+    def out(self):
+        return (time.time() - self.started) > self.totaltime
+    def draw(self):
+        remaining = self.totaltime - (time.time() - self.started) if self.started else self.totaltime
+        pyglet.text.Label('%.2f' % remaining, 
+                       color=Colors.t('green'),
+                       font_name='Consolas', 
+                       font_size=32,
+                       x=Screen.width, y=Screen.height//2,
+                       anchor_y='center', anchor_x='right').draw()
+
 class Score:
     LINE_AFFIRM_THRESHOLD = 40
     def __init__(self):
@@ -213,6 +254,11 @@ class Score:
         elapsed = time.time() - self.start_time
         if not elapsed: return 0
         return '%.4f' % (self.success / elapsed)
+    def get_result(self,time_taken):
+         return {'name':'You!',
+          'cps':self.get_cps(),
+          'misses':self.misses,
+          'points':int(time_taken*float(self.get_cps()))}
     def draw(self):
         scoretext = 'fail percentage: %s\nmisses: %s\ncps: %s' % (self.miss_rate(), self.misses, self.get_cps())
         pyglet.text.Label(scoretext, 
@@ -228,79 +274,311 @@ class Score:
 class SnippetMonger:
     def __init__(self):
         self.snipfiles = [file for file in os.listdir('.') if file.endswith('snp')]
-        self.snippets = []
+        self.snippets = {}
         for file in self.snipfiles:
-            self.snippets += [s for s in open(file).read().split('|||||=====|||||') if len(s)]
-        self.snippets.sort(lambda x,y: len(x)-len(y)) # Sort snippets by length
-        self.current = 0
+            self.snippets[file] = []
+            self.snippets[file] += [s for s in open(file).read().split('|||||=====|||||') if len(s)]
+        self.preferred = self.snippets.keys()
+        # self.snippets.sort(lambda x,y: len(x)-len(y)) # Sort snippets by length
+    def get_languages(self):
+        return self.snippets.keys()
+    def set_preferred_languages(self,preferred):
+        self.preferred = preferred
     def next(self):
-        if self.current >= len(self.snippets):
-            self.current = 1
-            return CodeSnippet(self.snippets[0], clean=True)
-        self.current += 1
-        return CodeSnippet(self.snippets[self.current-1], clean=True)
+        snippet_group = self.snippets[random.choice(self.preferred)]
+        snippet = random.choice(snippet_group)
+        return CodeSnippet(snippet, clean=True)
 
-class Game:
+class G: # hack hack hack
+    snippetmonger = SnippetMonger()
+
+class GameScreen:
     def __init__(self):
-        self.snippetmonger = SnippetMonger()
+        self.new_screen = False
+    def key_press(self,symbol,modifiers):
+        pass
+    def key_type(self,text):
+        pass
+    def tick(self,dt):
+        pass
+
+class MainGameScreen(GameScreen):
+    def __init__(self):
+        GameScreen.__init__(self)
+        self.snippetmonger = G.snippetmonger
         self.reset()
         self.messages = []
     def reset(self):
         self.scorer = Score()
+        self.stopwatch = Stopwatch(120)
+        self.stopwatch.go()
         self.new_word()
     def new_word(self):
         self.current_snippet = self.snippetmonger.next()
-    def FloatingText(self,type='line'):
+    def show_message(self,type='line'):
         self.messages.append(FloatingText(type))
+    def key_press(self,symbol,modifiers):  
+        hit, winner = self.current_snippet.symbol_on(symbol)
+        if winner: # beat a snippet, show a strongly positive message
+            self.new_word()
+            self.show_message('snippet')
+        elif hit:
+            affirm = self.scorer.hit(symbol)
+            if affirm: # did a line, show a weakly positive message
+                self.show_message('line')
+    def key_type(self,text):
+        if ord(text) == 13: # probably platform specific newline hack
+            return
+        self.scorer.key()
+        if self.current_snippet.type_on(text):
+            self.scorer.hit()
+        else:
+            neg = self.scorer.miss()
+            if neg:
+                self.show_message('negative')
     def tick(self,dt):
         dead = []
         for message in self.messages:
             alive = message.tick(dt)
             if not alive: dead.append(message)
         [self.messages.remove(message) for message in dead]
+        if self.stopwatch.out():
+            result = self.scorer.get_result(self.stopwatch.totaltime)
+            HighScores.add(result)
+            self.new_screen = RoundOverScreen(result)
     def draw(self):
         self.current_snippet.draw()
         self.scorer.draw()
+        self.stopwatch.draw()
         for message in self.messages:
             message.draw()
+
+class Option:
+    def __init__(self,name,color=Colors.t('white'),x=0,y=0,checkbox=False,checked=False):
+        self.name = name
+        self.color = color
+        self.x, self.y = x,y
+        self.checkbox = checkbox
+        self.checked = checked
+        self.label = pyglet.text.Label(name, 
+                       color=self.color,
+                       font_name='Arial', 
+                       font_size=16,
+                       x=self.x, y=self.y,
+                       anchor_y='center', anchor_x='center')
+    def set_color(self,color):
+        self.label.color = color
+    def move(self,x,y):
+        self.x,self.y = x,y
+    def draw(self):
+        self.label.x, self.label.y = self.x, self.y
+        self.label.draw()
+        if self.checkbox:
+            if self.checked:
+                drawQuad(self.x-self.label.content_width//2 - 20, self.y+5, 10, 10)
+            else:
+                drawQuad(self.x-self.label.content_width//2 - 20, self.y+5, 10, 10, hollow=True)
+
+class Options:
+    def __init__(self,option_names,x,y,checkbox=False):
+        self.options = [Option(name,checkbox=checkbox,checked=True) for name in option_names]
+        self.select(0)
+        self.x, self.y = x,y
+        self.checkbox = checkbox
+        self.arrange()
+    def arrange(self):
+        self.options[0].x, self.options[0].y = self.x, self.y
+        y = self.y
+        for option in self.options:
+            option.move(self.x,y)
+            y -= option.label.content_height
+    def select(self,n):
+        self.selected = n
+        for option in self.options[:self.selected]+self.options[self.selected+1:]:
+            option.set_color(Colors.t('white'))
+        self.options[self.selected].set_color(Colors.t('red'))
+    def value(self):
+        return self.options[self.selected].name
+    def get_checked(self):
+        if self.checkbox:
+            return [option.name for option in self.options if option.checked]
+        else:
+            return []
+    def toggle(self):
+        self.options[self.selected].checked = not self.options[self.selected].checked
+    def up(self):
+        if self.selected > 0:
+            self.select(self.selected-1)
+    def down(self):
+        if self.selected < len(self.options)-1:
+            self.select(self.selected+1)
+    def draw(self):
+        for option in self.options:
+            option.draw()
+
+class HighScoresScreen(GameScreen):
+    def __init__(self,y=Screen.height*.8):
+        GameScreen.__init__(self)
+        self.label = pyglet.text.Label('everyone is a winner', 
+                       color=Colors.t('white'),
+                       font_name='Arial', 
+                       font_size=32,
+                       x=Screen.width//2, y=Screen.height*.9,
+                       anchor_y='center', anchor_x='center')
+        self.scorelabels = []
+        for score in HighScores.get_sorted():
+            textual = 'name: %s, points: %s, cps: %s, misses: %s' % (score['name'], score['points'], score['cps'], score['misses'])
+            newlabel = pyglet.text.Label(textual, 
+                           color=Colors.t('white'),
+                           font_name='Arial', 
+                           font_size=16,
+                           x=Screen.width//2, y=y,
+                           anchor_y='center', anchor_x='center')
+            self.scorelabels.append(newlabel)
+            y -= newlabel.content_height
+    def key_press(self,symbol,modifiers):
+        if symbol == key.ENTER or symbol == key.BACKSPACE:
+            self.new_screen = Splash()
+    def draw(self):
+        self.label.draw()
+        [score.draw() for score in self.scorelabels]
+
+class RoundOverScreen(GameScreen):
+    def __init__(self,score):
+        GameScreen.__init__(self)
+        self.label = pyglet.text.Label('i think you did alright', 
+                       color=Colors.t('white'),
+                       font_name='Arial', 
+                       font_size=32,
+                       x=Screen.width//2, y=Screen.height*.9,
+                       anchor_y='center', anchor_x='center')
+        textual = 'name: %s, points: %s, cps: %s, misses: %s' % (score['name'], score['points'], score['cps'], score['misses'])
+        self.scorelabel = pyglet.text.Label(textual, 
+                       color=Colors.t('white'),
+                       font_name='Arial', 
+                       font_size=16,
+                       x=Screen.width//2, y=Screen.height//2,
+                       anchor_y='center', anchor_x='center')
+    def key_press(self,symbol,modifiers):
+        if symbol == key.ENTER or symbol == key.BACKSPACE:
+            self.new_screen = HighScoresScreen()
+    def draw(self):
+        self.label.draw()
+        self.scorelabel.draw()
+
+class OptionsScreen(GameScreen):
+    def __init__(self):
+        GameScreen.__init__(self)
+        self.label = pyglet.text.Label('space toggles a snippetset, backspace goes back', 
+                       color=Colors.t('white'),
+                       font_name='Arial', 
+                       font_size=16,
+                       x=Screen.width//2, y=Screen.height//2,
+                       anchor_y='center', anchor_x='center')
+        self.options = Options(G.snippetmonger.get_languages(),
+                               x=Screen.width//2, y=Screen.height//3.5,
+                               checkbox=True)
+    def key_press(self,symbol,modifiers):
+        if symbol == key.SPACE or symbol == key.ENTER:
+            self.options.toggle()
+        if symbol == key.BACKSPACE:
+            G.snippetmonger.set_preferred_languages(self.options.get_checked())
+            self.new_screen = Splash()
+        elif symbol == key.UP:
+            self.options.up()
+        elif symbol == key.DOWN:
+            self.options.down()
+    def draw(self):
+        self.label.draw()
+        self.options.draw()
+
+class Splash(GameScreen):
+    subtitles = ["Hyper Fighting Edition",
+                 "Alpha Turbo",
+                 "After Dark",
+                 "Electric Boogaloo",
+                 "Zeta Prime",
+                 "Professional",
+                 "Deluxe Edition",
+                 "Vista",
+                 "MMVIII"]
+    def __init__(self):
+        GameScreen.__init__(self)
+        self.label = pyglet.text.Label('CODE TYPER', 
+                       color=Colors.t('white'),
+                       font_name='Arial', 
+                       font_size=64,
+                       x=Screen.width//10, y=Screen.height*.9,
+                       anchor_y='top', anchor_x='left')
+        self.sublabel = pyglet.text.Label(random.choice(Splash.subtitles), 
+                       color=Colors.t('gray'),
+                       font_name='Arial', 
+                       font_size=16,
+                       x=self.label.x+self.label.content_width*.8, y=self.label.y-self.label.content_height,
+                       anchor_y='top', anchor_x='center')
+        self.options = Options(['Start', 'Options', 'High Scores', 'Exit'],
+                                x=Screen.width//2, y=Screen.height//3.5)
+    def key_press(self,symbol,modifiers):
+        if symbol == key.ENTER or symbol == key.SPACE:
+            if self.options.value()=='Start':
+                self.new_screen = MainGameScreen()
+            elif self.options.value()=='High Scores':
+                self.new_screen = HighScoresScreen()
+            elif self.options.value()=='Options':
+                self.new_screen = OptionsScreen()
+            elif self.options.value()=='Exit':
+                sys.exit()
+        elif symbol == key.UP:
+            self.options.up()
+        elif symbol == key.DOWN:
+            self.options.down()
+    def draw(self):
+        self.label.draw()
+        self.sublabel.draw()
+        self.options.draw()
+        
+class GameState:
+    def __init__(self):
+        self.current_screen = Splash()
+    def check_screen(self):
+        if self.current_screen.new_screen:
+            self.current_screen = self.current_screen.new_screen
+    def key_press(self,symbol,modifiers):
+        self.current_screen.key_press(symbol,modifiers)
+        self.check_screen()
+    def key_type(self,text):
+        self.current_screen.key_type(text)
+        self.check_screen()
+    def tick(self,dt):
+        self.current_screen.tick(dt)
+        self.check_screen()
+    def draw(self):
+        self.current_screen.draw()
 
 window = pyglet.window.Window(caption = "code typer", width = Screen.width, height = Screen.height, resizable = True)
 window.set_icon(pyglet.image.load('codetypericon.png'))
 pyglet.gl.glClearColor(*Colors.black)
 fps_display = pyglet.clock.ClockDisplay() if DEBUG else None
-game = Game()    
+state = GameState()
 
 def tick(dt):
-    game.tick(dt)
+    state.tick(dt)
 # this is being stupid. it should animate smoothly at 60, do I have to do interpolation in draw() or what...?
 pyglet.clock.schedule_interval(tick, 1/120.0)
 
 @window.event
 def on_draw():
     window.clear()
-    game.draw()
+    state.draw()
     if fps_display: fps_display.draw()
 
 @window.event
 def on_key_press(symbol, modifiers):
-    game.scorer.key()
-    hit, winner = game.current_snippet.symbol_on(symbol)
-    if winner: # beat a snippet, show a strongly positive message
-        game.new_word()
-        game.FloatingText('snippet')
-    elif hit:
-        affirm = game.scorer.hit(symbol)
-        if affirm: # did a line, show a weakly positive message
-            game.FloatingText('line')
+    state.key_press(symbol, modifiers)
 
 @window.event
 def on_text(text):
-    if game.current_snippet.type_on(text):
-        game.scorer.hit()
-    else:
-        neg = game.scorer.miss()
-        if neg:
-            game.FloatingText('negative')
+    state.key_type(text)
 
 if __name__ == '__main__':
     if '1.1' not in pyglet.version:
