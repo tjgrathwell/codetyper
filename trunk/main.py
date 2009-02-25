@@ -96,7 +96,7 @@ class CodeSnippet:
         if self.code[self.line][self.cursor] == text:
             self.cursor += 1
             self.render()
-            return True
+            return text
         return False
     def symbol_on(self, symbol):
         if symbol == key.TAB:
@@ -329,9 +329,12 @@ class MainGameScreen(GameScreen):
     def key_type(self,text):
         if ord(text) == 13: # probably platform specific newline hack
             return
-        self.scorer.key()
-        if self.current_snippet.type_on(text):
-            self.scorer.hit()
+        if text.strip():
+            self.scorer.key()
+        text_hit = self.current_snippet.type_on(text)
+        if text_hit:
+            if text_hit.strip(): # don't score hits for whitespace
+                self.scorer.hit()
         else:
             neg = self.scorer.miss()
             if neg:

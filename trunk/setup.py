@@ -36,3 +36,5 @@ setup(
   #in a folder.
   zipfile="lib/shared.zip"
 )
+
+os.rename('dist/main.exe','dist/codetyper.exe')
