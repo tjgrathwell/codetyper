@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 
-import pyglet
-from pyglet.window import mouse
-from pyglet.window import key
-from pyglet.gl import *
-import random
-import time
 import os
+import pyglet
+import random
+import re
 import sys
+import time
+from pyglet.window import mouse, key
+from pyglet.gl import *
 
 DEBUG = False
 
@@ -66,17 +66,21 @@ class Colors:
         return str(Colors.t(name))
 
 class CodeSnippet:
-    def __init__(self, code, clean=False): # code is an array of lines
-        self.code = code if not clean else self.clean(code)
-        self.line, self.cursor = 0, 0
+    def __init__(self, code): # code is an array of lines
+        self.code = self.clean(code)
+        self.line = 0
+        self.cursor = 0
         self.render()
 
     def clean(self, raw_code):
         cleanlines = [line.rstrip() + '\n' for line in raw_code.split('\n')]
-        while not cleanlines[0].strip():
+
+        while cleanlines[0].strip() == '':
             cleanlines.pop(0)
-        while not cleanlines[-1].strip():
+
+        while cleanlines[-1].strip() == '':
             cleanlines.pop()
+
         return cleanlines
 
     def render(self):
@@ -84,30 +88,45 @@ class CodeSnippet:
         # This is done so that we can boldenate the current character without
         #   having to worry about the case of {{ or }}
         b1, b2 = chr(254), chr(255)
-        temp_code = [line.replace('{',b1).replace('}',b2) for line in self.code]
+        raw_code = [line.replace('{',b1).replace('}',b2) for line in self.code]
+
+        raw_code_strings = None
+        current_line = raw_code[self.line]
+
         # BUG : Lines that end in { stop showing the { when that's typed on. rstrip's fault?
         if self.cursor == len(self.code[self.line]) - 1:
-            temp_code[self.line] = ''.join([temp_code[self.line].rstrip(),
-                                            ' {color %s}[RETURN]{color %s}\n' % (Colors.st('green'), Colors.st('white'))])
+            raw_code_strings = [
+                current_line.rstrip(),
+                ' {color %s}[RETURN]{color %s}\n' % (Colors.st('green'), Colors.st('white')),
+            ]
         else:
-            temp_code[self.line] = ''.join([temp_code[self.line][:self.cursor],
-                                       '{underline %s}{color %s}' % (Colors.st('red'), Colors.st('red')),
-                                       temp_code[self.line][self.cursor:self.cursor+1],
-                                       '{color %s}{underline false}' % Colors.st('white'),
-                                       temp_code[self.line][self.cursor+1:]])
-        if DEBUG:
-            print temp_code[self.line]
-        escaped_code = ' '.join(temp_code).replace(b1,'{{').replace(b2,'}}')
-        styled = "{font_name 'Consolas'}{font_size 10}{color %s} %s" % (Colors.st('gray'), escaped_code)
+            raw_code_strings = [
+                current_line[:self.cursor],
+                '{underline %s}{color %s}' % (Colors.st('red'), Colors.st('red')),
+                current_line[self.cursor:self.cursor+1],
+                '{color %s}{underline false}' % Colors.st('white'),
+                current_line[self.cursor+1:]
+            ]
+
+        raw_code[self.line] = ''.join(raw_code_strings)
+
+        escaped_code = ' '.join(raw_code).replace(b1,'{{').replace(b2,'}}')
+        styled = "{font_name 'Consolas'}{font_size 10}{color %s} %s" % (
+            Colors.st('gray'),
+            escaped_code)
 
         document = pyglet.text.decode_attributed(styled)
-        self.layout = pyglet.text.layout.TextLayout(document, multiline=True, width=Screen.width - 60, height=Screen.height)
+        self.layout = pyglet.text.layout.TextLayout(
+            document,
+            multiline=True,
+            width=Screen.width - 60,
+            height=Screen.height)
 
-    def type_on(self, text):
-        if self.code[self.line][self.cursor] == text:
+    def type_on(self, char):
+        if self.code[self.line][self.cursor] == char:
             self.cursor += 1
             self.render()
-            return text
+            return char
         return False
 
     def symbol_on(self, symbol):
@@ -181,12 +200,15 @@ class FloatingText:
             self.word = random.choice(FloatingText.negative)
         else:
             raise Exception
-        self.label = pyglet.text.Label(self.word, 
-                       color=self.color,
-                       bold=True,
-                       font_name='Arial', 
-                       font_size=64,
-                       anchor_y='center', anchor_x='center')
+
+        self.label = pyglet.text.Label(
+            self.word, 
+            color=self.color,
+            bold=True,
+            font_name='Arial', 
+            font_size=64,
+            anchor_y='center', anchor_x='center')
+
         # choose a random offscreen point by picking an x then a y
         self.startx = random.uniform(-Screen.width//2, Screen.width*(3/2))
         if random.choice([0,1]):
@@ -231,13 +253,17 @@ class Stopwatch:
         return (time.time() - self.started) > self.totaltime
 
     def draw(self):
-        remaining = self.totaltime - (time.time() - self.started) if self.started else self.totaltime
-        pyglet.text.Label('%.2f' % remaining, 
-                       color=Colors.t('green'),
-                       font_name='Consolas', 
-                       font_size=32,
-                       x=Screen.width, y=Screen.height//2,
-                       anchor_y='center', anchor_x='right').draw()
+        remaining = self.totaltime
+        if self.started:
+            remaining -= (time.time() - self.started)
+
+        pyglet.text.Label(
+            '%.2f' % remaining, 
+            color=Colors.t('green'),
+            font_name='Consolas', 
+            font_size=32,
+            x=Screen.width, y=Screen.height//2,
+            anchor_y='center', anchor_x='right').draw()
 
 class Score:
     LINE_AFFIRM_THRESHOLD = 40
@@ -324,7 +350,7 @@ class SnippetMonger:
     def next(cls):
         snippet_group = cls.snippets[random.choice(cls.preferred)]
         snippet = random.choice(snippet_group)
-        return CodeSnippet(snippet, clean=True)
+        return CodeSnippet(snippet)
 
 class GameScreen:
     def __init__(self):
@@ -367,14 +393,16 @@ class MainGameScreen(GameScreen):
             if affirm: # did a line, show a weakly positive message
                 self.show_message('line')
 
-    def key_type(self,text):
-        if ord(text) == 13: # probably platform specific newline hack
+    def key_type(self, char):
+        if ord(char) == 13: # newline
             return
-        if text.strip():
+
+        if char.strip():
             self.scorer.key()
-        text_hit = self.current_snippet.type_on(text)
-        if text_hit:
-            if text_hit.strip(): # don't score hits for whitespace
+
+        char_hit = self.current_snippet.type_on(char)
+        if char_hit:
+            if char_hit.strip(): # don't score hits for whitespace
                 self.scorer.hit()
         else:
             neg = self.scorer.miss()
@@ -406,12 +434,13 @@ class Option:
         self.x, self.y = x,y
         self.checkbox = checkbox
         self.checked = checked
-        self.label = pyglet.text.Label(name, 
-                       color=self.color,
-                       font_name='Arial', 
-                       font_size=16,
-                       x=self.x, y=self.y,
-                       anchor_y='center', anchor_x='center')
+        self.label = pyglet.text.Label(
+            name, 
+            color=self.color,
+            font_name='Arial', 
+            font_size=16,
+            x=self.x, y=self.y,
+            anchor_y='center', anchor_x='center')
 
     def set_color(self,color):
         self.label.color = color
@@ -476,21 +505,30 @@ class Options:
 class HighScoresScreen(GameScreen):
     def __init__(self,y=Screen.height*.8):
         GameScreen.__init__(self)
-        self.label = pyglet.text.Label('everyone is a winner', 
-                       color=Colors.t('white'),
-                       font_name='Arial', 
-                       font_size=32,
-                       x=Screen.width//2, y=Screen.height*.9,
-                       anchor_y='center', anchor_x='center')
+        self.label = pyglet.text.Label(
+            'everyone is a winner', 
+            color=Colors.t('white'),
+            font_name='Arial', 
+            font_size=32,
+            x=Screen.width//2, y=Screen.height*.9,
+            anchor_y='center', anchor_x='center')
+
         self.scorelabels = []
         for score in HighScores.get_sorted():
-            textual = 'name: %s, points: %s, cps: %s, misses: %s' % (score['name'], score['points'], score['cps'], score['misses'])
-            newlabel = pyglet.text.Label(textual, 
-                           color=Colors.t('white'),
-                           font_name='Arial', 
-                           font_size=16,
-                           x=Screen.width//2, y=y,
-                           anchor_y='center', anchor_x='center')
+            textual = 'name: %s, points: %s, cps: %s, misses: %s' % (
+                score['name'],
+                score['points'],
+                score['cps'],
+                score['misses'])
+
+            newlabel = pyglet.text.Label(
+                textual, 
+                color=Colors.t('white'),
+                font_name='Arial', 
+                font_size=16,
+                x=Screen.width//2, y=y,
+                anchor_y='center', anchor_x='center')
+
             self.scorelabels.append(newlabel)
             y -= newlabel.content_height
 
@@ -505,19 +543,27 @@ class HighScoresScreen(GameScreen):
 class RoundOverScreen(GameScreen):
     def __init__(self,score):
         GameScreen.__init__(self)
-        self.label = pyglet.text.Label('i think you did alright', 
-                       color=Colors.t('white'),
-                       font_name='Arial', 
-                       font_size=32,
-                       x=Screen.width//2, y=Screen.height*.9,
-                       anchor_y='center', anchor_x='center')
-        textual = 'name: %s, points: %s, cps: %s, misses: %s' % (score['name'], score['points'], score['cps'], score['misses'])
-        self.scorelabel = pyglet.text.Label(textual, 
-                       color=Colors.t('white'),
-                       font_name='Arial', 
-                       font_size=16,
-                       x=Screen.width//2, y=Screen.height//2,
-                       anchor_y='center', anchor_x='center')
+        self.label = pyglet.text.Label(
+            'i think you did alright', 
+            color=Colors.t('white'),
+            font_name='Arial', 
+            font_size=32,
+            x=Screen.width//2, y=Screen.height*.9,
+            anchor_y='center', anchor_x='center')
+
+        textual = 'name: %s, points: %s, cps: %s, misses: %s' % (
+            score['name'],
+            score['points'],
+            score['cps'],
+            score['misses'])
+
+        self.scorelabel = pyglet.text.Label(
+            textual, 
+            color=Colors.t('white'),
+            font_name='Arial', 
+            font_size=16,
+            x=Screen.width//2, y=Screen.height//2,
+            anchor_y='center', anchor_x='center')
 
     def key_press(self,symbol,modifiers):
         if symbol == key.ENTER or symbol == key.BACKSPACE:
@@ -530,16 +576,20 @@ class RoundOverScreen(GameScreen):
 class OptionsScreen(GameScreen):
     def __init__(self):
         GameScreen.__init__(self)
-        self.label = pyglet.text.Label('space toggles a snippetset, backspace goes back', 
-                       color=Colors.t('white'),
-                       font_name='Arial', 
-                       font_size=16,
-                       x=Screen.width//2, y=Screen.height//2,
-                       anchor_y='center', anchor_x='center')
-        self.options = Options(SnippetMonger.get_languages(),
-                               x=Screen.width//2, y=Screen.height//3.5,
-                               checkbox=True)
 
+        self.label = pyglet.text.Label(
+            'space toggles a snippetset, backspace goes back', 
+            color=Colors.t('white'),
+            font_name='Arial', 
+            font_size=16,
+            x=Screen.width//2, y=Screen.height//2,
+            anchor_y='center', anchor_x='center')
+
+        self.options = Options(
+            SnippetMonger.get_languages(),
+            x=Screen.width//2, y=Screen.height//3.5,
+            checkbox=True)
+        
     def key_press(self,symbol,modifiers):
         if symbol == key.SPACE or symbol == key.ENTER:
             self.options.toggle()
@@ -568,20 +618,27 @@ class Splash(GameScreen):
 
     def __init__(self):
         GameScreen.__init__(self)
-        self.label = pyglet.text.Label('CODE TYPER', 
-                       color=Colors.t('white'),
-                       font_name='Arial', 
-                       font_size=64,
-                       x=Screen.width//10, y=Screen.height*.9,
-                       anchor_y='top', anchor_x='left')
-        self.sublabel = pyglet.text.Label(random.choice(Splash.subtitles), 
-                       color=Colors.t('gray'),
-                       font_name='Arial', 
-                       font_size=16,
-                       x=self.label.x+self.label.content_width*.8, y=self.label.y-self.label.content_height,
-                       anchor_y='top', anchor_x='center')
-        self.options = Options(['Start', 'Options', 'High Scores', 'Exit'],
-                                x=Screen.width//2, y=Screen.height//3.5)
+
+        self.label = pyglet.text.Label(
+            'CODE TYPER', 
+            color=Colors.t('white'),
+            font_name='Arial', 
+            font_size=64,
+            x=Screen.width//10, y=Screen.height*.9,
+            anchor_y='top', anchor_x='left')
+
+        self.sublabel = pyglet.text.Label(
+            random.choice(Splash.subtitles), 
+            color=Colors.t('gray'),
+            font_name='Arial', 
+            font_size=16,
+            x = self.label.x + self.label.content_width*.8,
+            y = self.label.y - self.label.content_height,
+            anchor_y='top', anchor_x='center')
+
+        self.options = Options(
+            ['Start', 'Options', 'High Scores', 'Exit'],
+            x=Screen.width//2, y=Screen.height//3.5)
 
     def key_press(self,symbol,modifiers):
         if symbol == key.ENTER or symbol == key.SPACE:
@@ -649,20 +706,25 @@ def on_key_press(symbol, modifiers):
 def on_text(text):
     G.state.key_type(text)
 
+# http://stackoverflow.com/questions/1714027/version-number-comparison
+def cmpversion(version1, version2):
+    def normalize(v):
+        return [int(x) for x in re.sub(r'(\.0+)*$','', v).split(".")]
+    return cmp(normalize(version1), normalize(version2))
+
 if __name__ == '__main__':
-    if '1.1' not in pyglet.version:
-        print 'you need pyglet 1.1 beta 2 or greater'
+    if cmpversion(pyglet.version, '1.1') < 0:
+        print 'you need pyglet 1.1 or greater'
         sys.exit()
 
     pyglet.gl.glClearColor(*Colors.black)
 
     SnippetMonger.load()
 
-    # doesn't work well with OSX, unless  you can get pyglet to play nice
-    #G.window.set_icon(pyglet.image.load(os.path.join('.', 'codetypericon.png')))
+    G.window.set_icon(pyglet.image.load(os.path.join('.', 'codetyper.ico')))
 
-    # this is being stupid. it should animate smoothly at 60, do I have to do interpolation
-    #   in draw() or what...?
+    # this is being stupid. it should animate smoothly at 60,
+    #   do I have to do interpolation in draw() or what...?
     pyglet.clock.schedule_interval(G.state.tick, 1/120.0)
 
     pyglet.app.run()
