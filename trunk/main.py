@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 import pyglet
 from pyglet.window import mouse
 from pyglet.window import key
@@ -22,28 +24,33 @@ class Screen:
 
 class HighScores:
     scores = []
+
     @classmethod
     def load(cls,file):
         pass
+
     @classmethod
     def save(cls,file):
         pass
+
     @classmethod
     def add(cls,score):
         cls.scores.append(score)
+
     @classmethod
     def get_sorted(cls):
         return sorted(cls.scores, lambda x,y: y['points'] - x['points'])
 
 class Colors:
-    white = 1, 1, 1, 1
-    green = 0, 1, 0, 1
-    black = 0, 0, 0, 1
-    gray  = .7, .7, .7, 1
-    red   = 1, 0, 0, 1
-    blue  = .2, .2, .8, 1
+    white  = 1, 1, 1, 1
+    green  = 0, 1, 0, 1
+    black  = 0, 0, 0, 1
+    gray   = .7, .7, .7, 1
+    red    = 1, 0, 0, 1
+    blue   = .2, .2, .8, 1
     yellow = .8, .2, .8, 1
-    red2  = .8, .2, .2, 1
+    red2   = .8, .2, .2, 1
+
     @classmethod
     def t(cls, name):
         # get a tuple of a color multiplied up to 0-255
@@ -52,6 +59,7 @@ class Colors:
         else:
             col = Colors.white
         return [int(v * 255) for v in col]
+
     @classmethod
     def st(cls, name):
         # get a tuple of a color multiplied up to 0-255, as a string
@@ -62,6 +70,7 @@ class CodeSnippet:
         self.code = code if not clean else self.clean(code)
         self.line, self.cursor = 0, 0
         self.render()
+
     def clean(self, raw_code):
         cleanlines = [line.rstrip() + '\n' for line in raw_code.split('\n')]
         while not cleanlines[0].strip():
@@ -69,10 +78,11 @@ class CodeSnippet:
         while not cleanlines[-1].strip():
             cleanlines.pop()
         return cleanlines
+
     def render(self):
-        # Okay, so this is a hack: we preserve any actual { } from the original text and escape them later on.
-        # This is done so that we can boldenate the current character without having to worry about the
-        # case of {{ or }}
+        # We preserve any actual { } from the original text and escape them later on.
+        # This is done so that we can boldenate the current character without
+        #   having to worry about the case of {{ or }}
         b1, b2 = chr(254), chr(255)
         temp_code = [line.replace('{',b1).replace('}',b2) for line in self.code]
         # BUG : Lines that end in { stop showing the { when that's typed on. rstrip's fault?
@@ -92,12 +102,14 @@ class CodeSnippet:
 
         document = pyglet.text.decode_attributed(styled)
         self.layout = pyglet.text.layout.TextLayout(document, multiline=True, width=Screen.width - 60, height=Screen.height)
+
     def type_on(self, text):
         if self.code[self.line][self.cursor] == text:
             self.cursor += 1
             self.render()
             return text
         return False
+
     def symbol_on(self, symbol):
         if symbol == key.TAB:
             [self.type_on(' ') for i in xrange(4)]
@@ -110,6 +122,7 @@ class CodeSnippet:
                 self.render()
             return True, False
         return False, False
+
     def draw(self):
         self.layout.draw()
 
@@ -155,6 +168,7 @@ class FloatingText:
                 "Hooray!",
                 "OMG!!!",
                 "Dude!!"]
+
     def __init__(self,type='line'):
         if type == 'line':
             self.color = Colors.t('yellow')
@@ -183,13 +197,13 @@ class FloatingText:
         self.label.x, self.label.y = self.startx, self.targetx
         self.elapsed = 0
         self.total_time = random.uniform(1,2)
+
     def tick(self,dt):
         self.elapsed += dt
         
         if abs(self.total_time - self.elapsed) > 2:
             return False
         
-        # this whole bit is pretty bullshit. REFACTOR
         # make a value from 0 to total time where 0 is closest to the center
         far_awayness = min(abs(self.total_time - self.elapsed), self.total_time) * 1/self.total_time
         opc = min((1-far_awayness) * 1.6, 1.0) # 1.6 is magic value chosen by my mind
@@ -201,6 +215,7 @@ class FloatingText:
         self.label.y = self.starty + (self.targety-self.starty) * proportion
         
         return True
+
     def draw(self):
         self.label.draw()
 
@@ -208,10 +223,13 @@ class Stopwatch:
     def __init__(self,totaltime):
         self.totaltime = totaltime
         self.started = False
+
     def go(self):
         self.started = time.time()
+
     def out(self):
         return (time.time() - self.started) > self.totaltime
+
     def draw(self):
         remaining = self.totaltime - (time.time() - self.started) if self.started else self.totaltime
         pyglet.text.Label('%.2f' % remaining, 
@@ -223,14 +241,17 @@ class Stopwatch:
 
 class Score:
     LINE_AFFIRM_THRESHOLD = 40
+
     def __init__(self):
         self.success = 0
         self.misses = 0
         self.total = 0
         self.start_time = time.time()
         self.FloatingText_queued = 0
+
     def key(self):
         self.total += 1
+
     def hit(self,symbol=None):
         self.success += 1
         # queue an FloatingText every somany characters
@@ -239,84 +260,103 @@ class Score:
         if symbol and symbol == key.ENTER and self.FloatingText_queued:
             self.FloatingText_queued = False
             return True
+
     def miss(self):
         self.misses += 1
         if self.misses % 10 == 0:
             return True
         return False
+
     def success_rate(self):
         if not self.total: return 0
         return '%.4f' % (self.success / float(self.total))
+
     def miss_rate(self):
         if not self.total: return 0
         return '%.4f' % (self.misses / float(self.total))
+
     def get_cps(self):
         elapsed = time.time() - self.start_time
         if not elapsed: return 0
         return '%.4f' % (self.success / elapsed)
+
     def get_result(self,time_taken):
-         return {'name':'You!',
-          'cps':self.get_cps(),
-          'misses':self.misses,
-          'points':int(time_taken*float(self.get_cps()))}
+         return {
+             'name' : 'You!',
+             'cps' : self.get_cps(),
+             'misses' : self.misses,
+             'points' : int(time_taken*float(self.get_cps()))}
+
     def draw(self):
         scoretext = 'fail percentage: %s\nmisses: %s\ncps: %s' % (self.miss_rate(), self.misses, self.get_cps())
-        pyglet.text.Label(scoretext, 
-                       color=Colors.t('green'),
-                       font_name='Consolas', 
-                       font_size=10,
-                       x=Screen.width, y=0,
-                       anchor_y='bottom', anchor_x='right',
-                       multiline = True,
-                       width = Screen.width // 4,
-                       halign='center').draw()
+        pyglet.text.Label(
+            scoretext, 
+            color=Colors.t('green'),
+            font_name='Consolas', 
+            font_size=10,
+            x=Screen.width, y=0,
+            anchor_y='bottom', anchor_x='right',
+            multiline = True,
+            width = Screen.width // 4,
+            halign='center').draw()
 
 class SnippetMonger:
-    def __init__(self):
-        self.snipfiles = [file for file in os.listdir('.') if file.endswith('snp')]
-        self.snippets = {}
-        for file in self.snipfiles:
-            self.snippets[file] = []
-            self.snippets[file] += [s for s in open(file).read().split('|||||=====|||||') if len(s)]
-        self.preferred = self.snippets.keys()
-        # self.snippets.sort(lambda x,y: len(x)-len(y)) # Sort snippets by length
-    def get_languages(self):
-        return self.snippets.keys()
-    def set_preferred_languages(self,preferred):
-        self.preferred = preferred
-    def next(self):
-        snippet_group = self.snippets[random.choice(self.preferred)]
+    @classmethod
+    def load(cls):
+        snippets_dir = os.path.join('.', 'snippets')
+        cls.snipfiles = [file for file in os.listdir(snippets_dir) if file.endswith('snp')]
+        cls.snippets = {}
+        for file in cls.snipfiles:
+            long_filename = os.path.join(snippets_dir, file)
+            snippets = open(long_filename).read().split('|||||=====|||||')
+            cls.snippets[file] = filter(lambda snp: len(snp), snippets)
+        cls.preferred = cls.snippets.keys()
+
+    @classmethod
+    def get_languages(cls):
+        return cls.snippets.keys()
+
+    @classmethod
+    def set_preferred_languages(cls,preferred):
+        cls.preferred = preferred
+
+    @classmethod
+    def next(cls):
+        snippet_group = cls.snippets[random.choice(cls.preferred)]
         snippet = random.choice(snippet_group)
         return CodeSnippet(snippet, clean=True)
-
-class G: # hack hack hack
-    snippetmonger = SnippetMonger()
 
 class GameScreen:
     def __init__(self):
         self.new_screen = False
+
     def key_press(self,symbol,modifiers):
         pass
+
     def key_type(self,text):
         pass
+
     def tick(self,dt):
         pass
 
 class MainGameScreen(GameScreen):
     def __init__(self):
         GameScreen.__init__(self)
-        self.snippetmonger = G.snippetmonger
         self.reset()
         self.messages = []
+
     def reset(self):
         self.scorer = Score()
         self.stopwatch = Stopwatch(120)
         self.stopwatch.go()
         self.new_word()
+
     def new_word(self):
-        self.current_snippet = self.snippetmonger.next()
+        self.current_snippet = SnippetMonger.next()
+
     def show_message(self,type='line'):
         self.messages.append(FloatingText(type))
+
     def key_press(self,symbol,modifiers):  
         hit, winner = self.current_snippet.symbol_on(symbol)
         if winner: # beat a snippet, show a strongly positive message
@@ -326,6 +366,7 @@ class MainGameScreen(GameScreen):
             affirm = self.scorer.hit(symbol)
             if affirm: # did a line, show a weakly positive message
                 self.show_message('line')
+
     def key_type(self,text):
         if ord(text) == 13: # probably platform specific newline hack
             return
@@ -339,6 +380,7 @@ class MainGameScreen(GameScreen):
             neg = self.scorer.miss()
             if neg:
                 self.show_message('negative')
+
     def tick(self,dt):
         dead = []
         for message in self.messages:
@@ -349,6 +391,7 @@ class MainGameScreen(GameScreen):
             result = self.scorer.get_result(self.stopwatch.totaltime)
             HighScores.add(result)
             self.new_screen = RoundOverScreen(result)
+
     def draw(self):
         self.current_snippet.draw()
         self.scorer.draw()
@@ -369,10 +412,13 @@ class Option:
                        font_size=16,
                        x=self.x, y=self.y,
                        anchor_y='center', anchor_x='center')
+
     def set_color(self,color):
         self.label.color = color
+
     def move(self,x,y):
         self.x,self.y = x,y
+
     def draw(self):
         self.label.x, self.label.y = self.x, self.y
         self.label.draw()
@@ -389,32 +435,40 @@ class Options:
         self.x, self.y = x,y
         self.checkbox = checkbox
         self.arrange()
+
     def arrange(self):
         self.options[0].x, self.options[0].y = self.x, self.y
         y = self.y
         for option in self.options:
             option.move(self.x,y)
             y -= option.label.content_height
+
     def select(self,n):
         self.selected = n
         for option in self.options[:self.selected]+self.options[self.selected+1:]:
             option.set_color(Colors.t('white'))
         self.options[self.selected].set_color(Colors.t('red'))
+
     def value(self):
         return self.options[self.selected].name
+
     def get_checked(self):
         if self.checkbox:
             return [option.name for option in self.options if option.checked]
         else:
             return []
+
     def toggle(self):
         self.options[self.selected].checked = not self.options[self.selected].checked
+
     def up(self):
         if self.selected > 0:
             self.select(self.selected-1)
+
     def down(self):
         if self.selected < len(self.options)-1:
             self.select(self.selected+1)
+
     def draw(self):
         for option in self.options:
             option.draw()
@@ -439,9 +493,11 @@ class HighScoresScreen(GameScreen):
                            anchor_y='center', anchor_x='center')
             self.scorelabels.append(newlabel)
             y -= newlabel.content_height
+
     def key_press(self,symbol,modifiers):
         if symbol == key.ENTER or symbol == key.BACKSPACE:
             self.new_screen = Splash()
+
     def draw(self):
         self.label.draw()
         [score.draw() for score in self.scorelabels]
@@ -462,9 +518,11 @@ class RoundOverScreen(GameScreen):
                        font_size=16,
                        x=Screen.width//2, y=Screen.height//2,
                        anchor_y='center', anchor_x='center')
+
     def key_press(self,symbol,modifiers):
         if symbol == key.ENTER or symbol == key.BACKSPACE:
             self.new_screen = HighScoresScreen()
+
     def draw(self):
         self.label.draw()
         self.scorelabel.draw()
@@ -478,19 +536,21 @@ class OptionsScreen(GameScreen):
                        font_size=16,
                        x=Screen.width//2, y=Screen.height//2,
                        anchor_y='center', anchor_x='center')
-        self.options = Options(G.snippetmonger.get_languages(),
+        self.options = Options(SnippetMonger.get_languages(),
                                x=Screen.width//2, y=Screen.height//3.5,
                                checkbox=True)
+
     def key_press(self,symbol,modifiers):
         if symbol == key.SPACE or symbol == key.ENTER:
             self.options.toggle()
         if symbol == key.BACKSPACE:
-            G.snippetmonger.set_preferred_languages(self.options.get_checked())
+            SnippetMonger.set_preferred_languages(self.options.get_checked())
             self.new_screen = Splash()
         elif symbol == key.UP:
             self.options.up()
         elif symbol == key.DOWN:
             self.options.down()
+
     def draw(self):
         self.label.draw()
         self.options.draw()
@@ -505,6 +565,7 @@ class Splash(GameScreen):
                  "Deluxe Edition",
                  "Vista",
                  "MMVIII"]
+
     def __init__(self):
         GameScreen.__init__(self)
         self.label = pyglet.text.Label('CODE TYPER', 
@@ -521,6 +582,7 @@ class Splash(GameScreen):
                        anchor_y='top', anchor_x='center')
         self.options = Options(['Start', 'Options', 'High Scores', 'Exit'],
                                 x=Screen.width//2, y=Screen.height//3.5)
+
     def key_press(self,symbol,modifiers):
         if symbol == key.ENTER or symbol == key.SPACE:
             if self.options.value()=='Start':
@@ -535,6 +597,7 @@ class Splash(GameScreen):
             self.options.up()
         elif symbol == key.DOWN:
             self.options.down()
+
     def draw(self):
         self.label.draw()
         self.sublabel.draw()
@@ -543,48 +606,63 @@ class Splash(GameScreen):
 class GameState:
     def __init__(self):
         self.current_screen = Splash()
+
     def check_screen(self):
         if self.current_screen.new_screen:
             self.current_screen = self.current_screen.new_screen
+
     def key_press(self,symbol,modifiers):
         self.current_screen.key_press(symbol,modifiers)
         self.check_screen()
+
     def key_type(self,text):
         self.current_screen.key_type(text)
         self.check_screen()
+
     def tick(self,dt):
         self.current_screen.tick(dt)
         self.check_screen()
+
     def draw(self):
         self.current_screen.draw()
 
-window = pyglet.window.Window(caption = "code typer", width = Screen.width, height = Screen.height, resizable = True)
-window.set_icon(pyglet.image.load('codetypericon.png'))
-pyglet.gl.glClearColor(*Colors.black)
-fps_display = pyglet.clock.ClockDisplay() if DEBUG else None
-state = GameState()
+class G:
+    window = pyglet.window.Window(
+        caption = "code typer",
+        width = Screen.width,
+        height = Screen.height,
+        resizable = True)
+    state = GameState()
+    fps_display = pyglet.clock.ClockDisplay() if DEBUG else None
 
-def tick(dt):
-    state.tick(dt)
-# this is being stupid. it should animate smoothly at 60, do I have to do interpolation in draw() or what...?
-pyglet.clock.schedule_interval(tick, 1/120.0)
-
-@window.event
+@G.window.event
 def on_draw():
-    window.clear()
-    state.draw()
-    if fps_display: fps_display.draw()
+    G.window.clear()
+    G.state.draw()
+    if G.fps_display: G.fps_display.draw()
 
-@window.event
+@G.window.event
 def on_key_press(symbol, modifiers):
-    state.key_press(symbol, modifiers)
+    G.state.key_press(symbol, modifiers)
 
-@window.event
+@G.window.event
 def on_text(text):
-    state.key_type(text)
+    G.state.key_type(text)
 
 if __name__ == '__main__':
     if '1.1' not in pyglet.version:
         print 'you need pyglet 1.1 beta 2 or greater'
         sys.exit()
+
+    pyglet.gl.glClearColor(*Colors.black)
+
+    SnippetMonger.load()
+
+    # doesn't work well with OSX, unless  you can get pyglet to play nice
+    #G.window.set_icon(pyglet.image.load(os.path.join('.', 'codetypericon.png')))
+
+    # this is being stupid. it should animate smoothly at 60, do I have to do interpolation
+    #   in draw() or what...?
+    pyglet.clock.schedule_interval(G.state.tick, 1/120.0)
+
     pyglet.app.run()
