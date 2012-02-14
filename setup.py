@@ -11,7 +11,7 @@ opts = {
  } 
 } 
  
-def filesinpath(path,ext):
+def filesinpath(path, ext):
   return [os.path.abspath(os.path.join(path,file)) for file in os.listdir(path) if file.endswith(ext)]
  
 setup(
@@ -29,8 +29,8 @@ setup(
 
  
   #data files - these are the non-python files, like images and sounds
-  data_files = [(os.path.join('.'), filesinpath('.',".snp")),
-                (os.path.join('.'), filesinpath('.',"codetypericon.png"))],
+  data_files = [(os.path.join('.', 'snippets'), filesinpath(os.path.join('.', 'snippets'),".snp")),
+                (os.path.join('.'), filesinpath('.',"codetyper.ico"))],
  
   #this will pack up a zipfile instead of having a glut of files sitting
   #in a folder.

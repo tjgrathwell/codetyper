@@ -1,3 +1,7 @@
 Code Typer: a pyglet typing game experiment by Travis Grathwell
 
-The only dependency this should have is Pyglet.
+I wrote this in 2008, so I consider some of the code a little embarassing (and that's after I cleaned a lot of it up!). But it works.
+
+The rationale was that I suck at typing the various symbol keys that one so desperately needs to be an effective perl programmer ($%{}) and most existing typing programs don't test those, or only do so in isolation. This thing comes with some "real-world" examples to prime your hands to type code all day.
+
+The only dependency it should have is pyglet.
