@@ -30,8 +30,8 @@ sub naive_shuffle {                             # don't do this
     }
 }
 |||||=====|||||
-# fisher_yates_shuffle( \@array ) : generate a random permutation
-# of @array in place
+# fisher_yates_shuffle:
+# generate a random permutation of @array in place
 sub fisher_yates_shuffle {
     my $array = shift;
     my $i;
@@ -74,7 +74,7 @@ closedir(DIR);
 foreach $file (@NAMES) {
     my $newname = $file;
     # change $newname
-    rename($file, $newname) or  
+    rename($file, $newname) or
         warn "Couldn't rename $file to $newname: $!\n";
 }
 |||||=====|||||

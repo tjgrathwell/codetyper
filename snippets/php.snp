@@ -1,7 +1,7 @@
 // main submit logic
 if (@$_REQUEST['action'] == 'register') {
     $resp = check_username($_REQUEST['username']);
-    
+
     if ($resp['ok']) {
         $message = 'All details fine';
     } else {
@@ -40,7 +40,7 @@ function check_username($username) {
         $resp = array("ok" => true, "msg" => "This username is free");
     }
 
-    return $resp;        
+    return $resp;
 }
 |||||=====|||||
 <?
@@ -49,11 +49,11 @@ function check_username($username) {
 $metals = array("copper","iron","gold","cobalt");
 
 foreach ( $metals as $element ) {
-  
+
     echo "This element is: $element<BR>";
 
 }
-?> 
+?>
 |||||=====|||||
 <?php
 

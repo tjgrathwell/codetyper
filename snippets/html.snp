@@ -6,17 +6,6 @@
     <title>jQuery for Designers - Ajax Form Validation Example</title>
     <style type="text/css" media="screen">
 |||||=====|||||
-<div>
-    <label for="username">Username, valid: a-z.-_</label>
-    <input type="text" name="username" value="<?=@$_REQUEST['username']?>" id="username" />
-    <span id="validateUsername"><?php if ($error) { echo $error['msg']; } ?></span>
-</div>
-<div>
-    <label for="avatar">Avatar URL</label>
-    <input type="text" name="avatar" size="50" value="<?=@$_REQUEST['avatar']?>" id="avatar" />
-    <span id="validateAvatar"><?php if (@$_REQUEST['avatar']) { echo '<img src="' . $_REQUEST['avatar'] . '" height="32" width="32" class="avatar" />'; }?></span>
-</div>
-|||||=====|||||
 <html>
     <head>
         <meta http-equiv="content-type" content="text/html; charset=utf-8" />
@@ -26,7 +15,8 @@
 <td align="center" nowrap="nowrap">
    <input name="hl" type="hidden" value="en" />
    <input type="hidden" name="ie" value="ISO-8859-1" />
-   <input autocomplete="off" maxlength="2048" name="q" size="55" title="Google Search" value="" />
+   <input autocomplete="off" maxlength="2048" name="q" size="55"
+          title="Google Search" value="" />
    <br />
    <input name="btnG" type="submit" value="Google Search" />
    <input name="btnI" type="submit" value="I'm Feeling Lucky" />

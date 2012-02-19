@@ -21,18 +21,18 @@ def on_draw():
     game.draw()
     if fps_display: fps_display.draw()
 |||||=====|||||
-def testToRomanCase(self):                        
-    """toRoman should always return uppercase"""  
-    for integer in range(1, 4000):                
-        numeral = roman.toRoman(integer)          
+def testToRomanCase(self):
+    """toRoman should always return uppercase"""
+    for integer in range(1, 4000):
+        numeral = roman.toRoman(integer)
         self.assertEqual(numeral, numeral.upper())
 |||||=====|||||
-class DefaultErrorHandler(urllib2.HTTPDefaultErrorHandler):   
+class DefaultErrorHandler(urllib2.HTTPDefaultErrorHandler):
     def http_error_default(self, req, fp, code, msg, headers):
-        result = urllib2.HTTPError(                           
-            req.get_full_url(), code, msg, headers, fp)       
-        result.status = code                                  
-        return result  
+        result = urllib2.HTTPError(
+            req.get_full_url(), code, msg, headers, fp)
+        result.status = code
+        return result
 |||||=====|||||
 from SOAPpy import WSDL
 
@@ -50,7 +50,7 @@ def search(q):
              "link": r.URL.encode("utf-8"),
              "description": r.snippet.encode("utf-8")}
             for r in results.resultElements]
-|||||=====|||||            
+|||||=====|||||
 from sgmllib import SGMLParser
 
 class URLLister(SGMLParser):
@@ -62,4 +62,3 @@ class URLLister(SGMLParser):
         href = [v for k, v in attrs if k=='href']
         if href:
             self.urls.extend(href)
-        
